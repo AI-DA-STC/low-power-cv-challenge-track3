@@ -1,0 +1,3 @@
+[submodule "models/DepthAnythingV2"]
+	path = models/DepthAnythingV2
+	url = https://github.com/AI-DA-STC/25LPCVC_Track3_Sample_Solution.git
