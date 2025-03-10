@@ -1,0 +1,10 @@
+python-json-logger
+pyprojroot
+torch
+torchvision
+numpy
+transformers
+wandb
+tqdm
+pydantic-settings
+accelerate

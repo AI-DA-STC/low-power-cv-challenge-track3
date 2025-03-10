@@ -1,0 +1,175 @@
+import os
+import torch
+import argparse
+import transformers
+from transformers import TrainingArguments
+from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR
+
+import sys
+import pyprojroot
+root = pyprojroot.find_root(pyprojroot.has_dir("config"))
+sys.path.append(str(root))
+
+from config import settings
+from src.modules.student import StudentModel
+from src.modules.teacher import TeacherModel
+from src.services.data_loader import create_data_loaders
+from src.services.trainer_KD import KnowledgeDistillationTrainer
+from src.utils.loss import DistillationLoss
+
+def parse_args():
+    """
+    Parse command line arguments with defaults from settings.
+    Command line arguments override the settings.
+    """
+    parser = argparse.ArgumentParser(description="Knowledge Distillation for Depth Estimation")
+    
+    # Data args
+    parser.add_argument("--data_dir", type=str, 
+                        default=str(settings.DATA_DIR), 
+                        help="Path to dataset")
+    parser.add_argument("--output_dir", type=str, 
+                        default=str(settings.OUTPUT_DIR), 
+                        help="Output directory")
+    
+    # Training args
+    parser.add_argument("--batch_size", type=int, 
+                        default=settings.BATCH_SIZE, 
+                        help="Batch size for training")
+    parser.add_argument("--val_batch_size", type=int, 
+                        default=settings.VAL_BATCH_SIZE, 
+                        help="Batch size for validation")
+    parser.add_argument("--num_workers", type=int, 
+                        default=settings.NUM_WORKERS, 
+                        help="Number of workers for data loading")
+    parser.add_argument("--learning_rate", type=float, 
+                        default=settings.LEARNING_RATE, 
+                        help="Learning rate")
+    parser.add_argument("--weight_decay", type=float, 
+                        default=settings.WEIGHT_DECAY, 
+                        help="Weight decay")
+    parser.add_argument("--num_epochs", type=int, 
+                        default=settings.NUM_EPOCHS, 
+                        help="Number of training epochs")
+    parser.add_argument("--image_size", type=int, 
+                        default=settings.IMAGE_SIZE, 
+                        help="Size of input images")
+    
+    # Distillation args
+    parser.add_argument("--gamma", type=float, 
+                        default=settings.GAMMA, 
+                        help="Weight for KL divergence loss")
+    parser.add_argument("--temperature", type=float, 
+                        default=settings.TEMPERATURE, 
+                        help="Temperature for softening logits")
+    
+    # Model args
+    parser.add_argument("--teacher_model", type=str, 
+                        default=settings.TEACHER_MODEL, 
+                        help="Teacher model name")
+    parser.add_argument("--student_model", type=str, 
+                        default=settings.STUDENT_MODEL, 
+                        help="Student model name")
+    
+    # Other args
+    parser.add_argument("--seed", type=int, 
+                        default=settings.SEED, 
+                        help="Random seed")
+    parser.add_argument("--save_steps", type=int, 
+                        default=settings.SAVE_STEPS, 
+                        help="Save checkpoint every X steps")
+    parser.add_argument("--eval_steps", type=int, 
+                        default=settings.EVAL_STEPS, 
+                        help="Evaluate every X steps")
+    parser.add_argument("--logging_steps", type=int, 
+                        default=settings.LOGGING_STEPS, 
+                        help="Log every X steps")
+    
+    return parser.parse_args()
+
+def main():
+    # Parse arguments
+    args = parse_args()
+    
+    # Set seed for reproducibility
+    transformers.set_seed(args.seed)
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(args.output_dir, exist_ok=True)
+    
+    # Create data loaders
+    train_loader, val_loader = create_data_loaders(
+        data_dir=args.data_dir,
+        batch_size=args.batch_size,
+        image_size=(args.image_size, args.image_size),
+        num_workers=args.num_workers
+    )
+    
+    # Initialize models
+    teacher_model = TeacherModel(model_name=args.teacher_model)
+    student_model = StudentModel(model_name=args.student_model)
+    
+    # Initialize distillation loss
+    distillation_loss = DistillationLoss(gamma=args.gamma, temperature=args.temperature)
+    
+    # Set up training arguments
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        num_train_epochs=args.num_epochs,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.val_batch_size,
+        warmup_steps=settings.WARMUP_STEPS,
+        weight_decay=args.weight_decay,
+        logging_dir=os.path.join(args.output_dir, "outputs/logs"),
+        logging_steps=args.logging_steps,
+        save_steps=args.save_steps,
+        eval_steps=args.eval_steps,
+        evaluation_strategy="steps",
+        save_total_limit=3,
+        load_best_model_at_end=True,
+        metric_for_best_model="loss",
+        greater_is_better=False,
+        report_to="tensorboard",
+        dataloader_num_workers=args.num_workers,
+        remove_unused_columns=False,
+    )
+    
+    # Initialize optimizer and scheduler
+    optimizer = AdamW(
+        student_model.parameters(),
+        lr=args.learning_rate,
+        weight_decay=args.weight_decay
+    )
+    
+    # Initialize scheduler
+    scheduler = CosineAnnealingLR(
+        optimizer,
+        T_max=len(train_loader) * args.num_epochs,
+        eta_min=settings.LEARNING_RATE * settings.MIN_LR_RATIO
+    )
+    
+    # Initialize trainer
+    trainer = KnowledgeDistillationTrainer(
+        student_model=student_model,
+        teacher_model=teacher_model,
+        args=training_args,
+        train_dataloader=train_loader,
+        eval_dataloader=val_loader,
+        distillation_loss=distillation_loss,
+        optimizers=(optimizer, scheduler),
+        gamma=args.gamma,
+        temperature=args.temperature,
+        device=torch.device("cuda" if torch.cuda.is_available() else "mps")
+    )
+    
+    # Train the model
+    trainer.train()
+    
+    # Save the final model
+    trainer.save_model(os.path.join(args.output_dir, "final_model"))
+    
+    print("Training completed!")
+
+if __name__ == "__main__":
+    main()
