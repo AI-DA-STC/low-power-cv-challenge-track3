@@ -1,6 +1,7 @@
 from pathlib import Path
 import pyprojroot
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import find_dotenv, load_dotenv
 
 class PathInfo:
     """
@@ -10,6 +11,9 @@ class PathInfo:
     HOME: Path = Path.home()
     BASE: Path = pyprojroot.find_root(pyprojroot.has_dir("config"))
     WORKSPACE: Path = BASE.parent.parent
+    ENV = "dev"
+
+load_dotenv(Path(PathInfo.BASE, ".env"))
 
 class GeneralSettings(BaseSettings, PathInfo):
     """
@@ -60,3 +64,4 @@ class TrainingSettings(BaseSettings, PathInfo):
     WARMUP_STEPS: int = 500
     LR_SCHEDULER_TYPE: str = "cosine"
     MIN_LR_RATIO: float = 0.1
+    

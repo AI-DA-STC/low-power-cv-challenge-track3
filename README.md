@@ -1,7 +1,18 @@
 ## TO DO
+- Accelerate training using distributed gpu-cuda and run for ~10 epochs
+- Use scale & shift invariant loss instead of mse for depth estimation loss (as used in depthanythingv2)
+- Use cos_sim instead of KL_div (as used in depthanythingv1)
+- Include contrastive_loss to see if any difference in loss function
 
-- Benchmark the DepthAnythingV2, FastDepth, DepthPro on the challenge test dataset
+## Backlog
+
+
+## Done
+
+- Run the depthanythingv2 on Qualcomm ai hub 
 - Data creation 
-    - Datasets : Real + synthetic
-    - Preprocessing :  
-    - Augmentation : Apply color jitter (change brightness, contrast and saturation)
+    - Dataset extraction : Places365 dataset. Outdoor : 56%, Indoor : 44%
+    - Augmentation : Apply color jitter to balance distribution
+- Init repo
+    - Teacher model : depthAnythingv2-large and student model : dpt-small-dinov2-kitti 
+    - Script for training a baseline KD pipeline with distill loss = MSE + alpha * KL_div

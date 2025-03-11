@@ -130,23 +130,10 @@ def main():
         load_best_model_at_end=True,
         metric_for_best_model="loss",
         greater_is_better=False,
-        report_to="tensorboard",
         dataloader_num_workers=args.num_workers,
         remove_unused_columns=False,
-    )
-    
-    # Initialize optimizer and scheduler
-    optimizer = AdamW(
-        student_model.parameters(),
-        lr=args.learning_rate,
-        weight_decay=args.weight_decay
-    )
-    
-    # Initialize scheduler
-    scheduler = CosineAnnealingLR(
-        optimizer,
-        T_max=len(train_loader) * args.num_epochs,
-        eta_min=settings.LEARNING_RATE * settings.MIN_LR_RATIO
+        optim="adamw_torch",
+        lr_scheduler_type=settings.LR_SCHEDULER_TYPE,
     )
     
     # Initialize trainer
@@ -154,13 +141,11 @@ def main():
         student_model=student_model,
         teacher_model=teacher_model,
         args=training_args,
-        train_dataloader=train_loader,
-        eval_dataloader=val_loader,
+        train_dataset=train_loader.dataset,
+        eval_dataset=val_loader.dataset,
         distillation_loss=distillation_loss,
-        optimizers=(optimizer, scheduler),
         gamma=args.gamma,
-        temperature=args.temperature,
-        device=torch.device("cuda" if torch.cuda.is_available() else "mps")
+        temperature=args.temperature
     )
     
     # Train the model

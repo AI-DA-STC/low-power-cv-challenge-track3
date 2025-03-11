@@ -33,8 +33,16 @@ class StudentModel(nn.Module):
         outputs = self.model(pixel_values)
         
         # Extract pseudo labels (predicted depth)
-        predicted_labels = outputs.predicted_depth
+        predicted_depth = outputs.predicted_depth
 
+        # interpolate to original size
+        predicted_labels = torch.nn.functional.interpolate(
+                predicted_depth.unsqueeze(1),
+                size=pixel_values.size()[-2:],
+                mode="bicubic",
+                align_corners=False,
+            ) 
+        
         #Extract logits of last hidden layer
         logits = outputs.hidden_states[-1]
         

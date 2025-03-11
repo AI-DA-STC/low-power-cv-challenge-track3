@@ -41,7 +41,15 @@ class TeacherModel(nn.Module):
             outputs = self.model(pixel_values)
             
             # Extract pseudo labels (predicted depth)
-            pseudo_labels = outputs.predicted_depth
+            predicted_depth = outputs.predicted_depth
+
+            # interpolate to original size
+            pseudo_labels = torch.nn.functional.interpolate(
+                predicted_depth.unsqueeze(1),
+                size=pixel_values.size()[-2:],
+                mode="bicubic",
+                align_corners=False,
+            )   
 
             #Extract logits of last hidden layer
             logits = outputs.hidden_states[-1]
@@ -50,17 +58,3 @@ class TeacherModel(nn.Module):
             "logits": logits,
             "pseudo_labels": pseudo_labels
         }
-    
-    @torch.no_grad()
-    def generate_pseudo_labels(self, pixel_values: torch.Tensor) -> torch.Tensor:
-        """
-        Generate pseudo labels for the given images.
-        
-        Args:
-            pixel_values (torch.Tensor): Input images of shape (B, C, H, W)
-            
-        Returns:
-            torch.Tensor: Pseudo labels
-        """
-        outputs = self.forward(pixel_values)
-        return outputs["pseudo_labels"]

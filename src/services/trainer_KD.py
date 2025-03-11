@@ -20,8 +20,6 @@ class KnowledgeDistillationTrainer(Trainer):
         student_model: StudentModel,
         teacher_model: TeacherModel,
         args: TrainingArguments,
-        train_dataloader: DataLoader,
-        eval_dataloader: Optional[DataLoader] = None,
         distillation_loss: Optional[nn.Module] = None,
         optimizers: Tuple[optim.Optimizer, Any] = (None, None),
         gamma: float = 0.5,
@@ -48,18 +46,12 @@ class KnowledgeDistillationTrainer(Trainer):
         super().__init__(
             model=student_model,
             args=args,
-            data_collator=None,
-            train_dataset=None,
-            eval_dataset=None,
-            optimizers=optimizers,
             **kwargs
         )
         
         # Set attributes
         self.student_model = student_model
         self.teacher_model = teacher_model
-        self.train_dataloader = train_dataloader
-        self.eval_dataloader = eval_dataloader
         
         # Initialize distillation loss if not provided
         self.distillation_loss = distillation_loss or DistillationLoss(
@@ -78,27 +70,13 @@ class KnowledgeDistillationTrainer(Trainer):
         # Set teacher to evaluation mode
         self.teacher_model.eval()
     
-    def get_train_dataloader(self) -> DataLoader:
-        """
-        Override get_train_dataloader to use our custom dataloader.
-        """
-        return self.train_dataloader
-    
-    def get_eval_dataloader(self) -> DataLoader:
-        """
-        Override get_eval_dataloader to use our custom dataloader.
-        """
-        return self.eval_dataloader
-    
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """
         Override compute_loss to implement knowledge distillation.
         
         Args:
             model (nn.Module): The student model
-            inputs (Dict): Input data
-            return_outputs (bool): Whether to return outputs
-            
+            inputs (Dict): Input data            
         Returns:
             tuple or torch.Tensor: The loss or (loss, outputs)
         """
@@ -119,36 +97,3 @@ class KnowledgeDistillationTrainer(Trainer):
             return loss, student_outputs
         
         return loss
-
-    def train(self, resume_from_checkpoint: Optional[Union[str, bool]] = None, **kwargs):
-        """
-        Override the train method to implement custom validation frequency.
-        
-        Args:
-            resume_from_checkpoint (str or bool, optional): Path to checkpoint
-            **kwargs: Additional arguments for training
-            
-        Returns:
-            TrainOutput: Training output
-        """
-        # Initialize training arguments
-        args = self.args
-        
-        # Add validation callback
-        class ValidationCallback(TrainerCallback):
-            def __init__(self, trainer, eval_steps=10):
-                self.trainer = trainer
-                self.eval_steps = eval_steps
-                self.global_step = 0
-                
-            def on_step_end(self, args, state, control, **kwargs):
-                self.global_step += 1
-                if self.global_step % self.eval_steps == 0:
-                    self.trainer.evaluate()
-        
-        # Add validation callback
-        validation_callback = ValidationCallback(self, eval_steps=10)
-        self.add_callback(validation_callback)
-        
-        # Call parent train method
-        return super().train(resume_from_checkpoint=resume_from_checkpoint, **kwargs)

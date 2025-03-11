@@ -28,9 +28,7 @@ class Places365Dataset(Dataset):
         if self.transform is None:
             self.transform = transforms.Compose([
                 transforms.Resize(self.image_size),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                     std=[0.229, 0.224, 0.225])
+                transforms.ToTensor()
             ])
         
         # Get all image paths
@@ -54,13 +52,8 @@ class Places365Dataset(Dataset):
         # Apply transformations
         if self.transform:
             image = self.transform(image)
-        
-        mean = torch.mean(image)
-        std = torch.std(image)
-
-        normalized_image = (image - mean) / (std + 1e-8)
             
-        return {"pixel_values": normalized_image}
+        return {"pixel_values": image}
 
 
 def create_data_loaders(
