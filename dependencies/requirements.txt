@@ -1,0 +1,8 @@
+python-json-logger
+pyprojroot
+numpy
+transformers
+wandb
+tqdm
+pydantic-settings
+accelerate

@@ -53,8 +53,10 @@ class TrainingSettings(BaseSettings, PathInfo):
     # Training logistics
     SEED: int = 42
     SAVE_STEPS: int = 1000
-    EVAL_STEPS: int = 500
+    EVAL_STEPS: int = 1000
     LOGGING_STEPS: int = 100
+    MAX_STEPS: int = 10000 #setting this overrides NUM_EPOCHS. If set to -1, it will use NUM_EPOCHS
+
     
     # Early stopping
     EARLY_STOPPING_PATIENCE: int = 3
@@ -64,4 +66,13 @@ class TrainingSettings(BaseSettings, PathInfo):
     WARMUP_STEPS: int = 500
     LR_SCHEDULER_TYPE: str = "cosine"
     MIN_LR_RATIO: float = 0.1
+
+    # Multi-GPU training settings
+    USE_DATA_PARALLEL: bool = True
+    DEVICE: str = "cuda"
+
+    #wandb logging
+    WANDB_PROJECT: str = "depth-estimation-lpcvc"
+    RUN_NAME: str = f"KD_v0.0"
+
     

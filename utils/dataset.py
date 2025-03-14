@@ -46,4 +46,4 @@ if __name__ == "__main__":
     #download places365 dataset
     download("http://data.csail.mit.edu/places/places365/places365standard_easyformat.tar", "./data/places365/")
     #download corresponding indoor outdoor labels for distribution analysis
-    #download("https://raw.githubusercontent.com/CSAILVision/places365/refs/heads/master/IO_places365.txt", "./data/places365/metadata/")
+    download("https://raw.githubusercontent.com/CSAILVision/places365/refs/heads/master/IO_places365.txt", "./data/places365/metadata/")

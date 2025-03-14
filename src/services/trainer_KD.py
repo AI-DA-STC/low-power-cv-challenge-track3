@@ -22,8 +22,6 @@ class KnowledgeDistillationTrainer(Trainer):
         args: TrainingArguments,
         distillation_loss: Optional[nn.Module] = None,
         optimizers: Tuple[optim.Optimizer, Any] = (None, None),
-        gamma: float = 0.5,
-        temperature: float = 1.0,
         device: Optional[torch.device] = "mps",
         **kwargs
     ):
@@ -53,11 +51,7 @@ class KnowledgeDistillationTrainer(Trainer):
         self.student_model = student_model
         self.teacher_model = teacher_model
         
-        # Initialize distillation loss if not provided
-        self.distillation_loss = distillation_loss or DistillationLoss(
-            gamma=gamma, 
-            temperature=temperature
-        )
+        self.distillation_loss = distillation_loss 
         
         # Move models to device
         self.student_model.to(device)
@@ -97,3 +91,39 @@ class KnowledgeDistillationTrainer(Trainer):
             return loss, student_outputs
         
         return loss
+    
+    '''def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        """
+        Run evaluation and return metrics.
+        """
+        # Run standard evaluation
+        output = super().evaluate(
+            eval_dataset=eval_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix
+        )
+        
+        # Make sure metrics dictionary exists
+        if not hasattr(output, "metrics"):
+            output.metrics = {}
+        
+        # Add 'eval_loss' to the metrics if not already present
+        if f"{metric_key_prefix}_loss" not in output.metrics:
+            # Calculate average loss over the evaluation dataset
+            self.model.eval()
+            eval_dataloader = self.get_eval_dataloader(eval_dataset)
+            
+            eval_losses = []
+            for inputs in eval_dataloader:
+                # Move inputs to the correct device
+                inputs = {k: v.to(self.args.device) if isinstance(v, torch.Tensor) else v 
+                         for k, v in inputs.items()}
+                
+                with torch.no_grad():
+                    loss = self.compute_loss(self.model, inputs)
+                eval_losses.append(loss.detach().cpu().item())
+            
+            # Add the loss to the metrics
+            output.metrics[f"{metric_key_prefix}_loss"] = np.mean(eval_losses)
+        
+        return output'''

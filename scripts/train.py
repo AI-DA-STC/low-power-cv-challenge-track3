@@ -1,4 +1,5 @@
 import os
+import wandb
 import torch
 import argparse
 import transformers
@@ -11,12 +12,18 @@ import pyprojroot
 root = pyprojroot.find_root(pyprojroot.has_dir("config"))
 sys.path.append(str(root))
 
+import logging
+logger = logging.getLogger(__name__)
+
 from config import settings
 from src.modules.student import StudentModel
 from src.modules.teacher import TeacherModel
 from src.services.data_loader import create_data_loaders
 from src.services.trainer_KD import KnowledgeDistillationTrainer
 from src.utils.loss import DistillationLoss
+from utils import logger as logging
+
+logging.setup_logging()
 
 def parse_args():
     """
@@ -32,6 +39,14 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, 
                         default=str(settings.OUTPUT_DIR), 
                         help="Output directory")
+
+    # Multi-GPU training args
+    parser.add_argument("--use_data_parallel", type=bool, 
+                        default=settings.USE_DATA_PARALLEL, 
+                        help="Use DataParallel for multi GPU training")
+    parser.add_argument("--device", type=str, 
+                        default=settings.DEVICE, 
+                        help="Device to use (e.g., 'cuda' or 'cpu')")
     
     # Training args
     parser.add_argument("--batch_size", type=int, 
@@ -52,6 +67,9 @@ def parse_args():
     parser.add_argument("--num_epochs", type=int, 
                         default=settings.NUM_EPOCHS, 
                         help="Number of training epochs")
+    parser.add_argument("--max_steps", type=int,
+                        default=settings.MAX_STEPS,
+                        help="Maximum number of training steps")
     parser.add_argument("--image_size", type=int, 
                         default=settings.IMAGE_SIZE, 
                         help="Size of input images")
@@ -109,10 +127,16 @@ def main():
     # Initialize models
     teacher_model = TeacherModel(model_name=args.teacher_model)
     student_model = StudentModel(model_name=args.student_model)
+
+    # Wrap models with DataParallel if requested and if multiple GPUs are available
+    if args.use_data_parallel and torch.cuda.device_count() > 1:
+        logger.info(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        teacher_model = torch.nn.DataParallel(teacher_model)
+        student_model = torch.nn.DataParallel(student_model)
     
     # Initialize distillation loss
     distillation_loss = DistillationLoss(gamma=args.gamma, temperature=args.temperature)
-    
+    run = wandb.init(project=settings.WANDB_PROJECT, name=f"{settings.RUN_NAME}_{args.student_model}")
     # Set up training arguments
     training_args = TrainingArguments(
         output_dir=args.output_dir,
@@ -121,19 +145,17 @@ def main():
         per_device_eval_batch_size=args.val_batch_size,
         warmup_steps=settings.WARMUP_STEPS,
         weight_decay=args.weight_decay,
-        logging_dir=os.path.join(args.output_dir, "outputs/logs"),
+        logging_dir=os.path.join(args.output_dir, "logs"),
         logging_steps=args.logging_steps,
         save_steps=args.save_steps,
         eval_steps=args.eval_steps,
         evaluation_strategy="steps",
         save_total_limit=3,
-        load_best_model_at_end=True,
-        metric_for_best_model="loss",
-        greater_is_better=False,
         dataloader_num_workers=args.num_workers,
         remove_unused_columns=False,
         optim="adamw_torch",
         lr_scheduler_type=settings.LR_SCHEDULER_TYPE,
+        max_steps=args.max_steps
     )
     
     # Initialize trainer
@@ -144,8 +166,7 @@ def main():
         train_dataset=train_loader.dataset,
         eval_dataset=val_loader.dataset,
         distillation_loss=distillation_loss,
-        gamma=args.gamma,
-        temperature=args.temperature
+        device=args.device
     )
     
     # Train the model
@@ -154,7 +175,8 @@ def main():
     # Save the final model
     trainer.save_model(os.path.join(args.output_dir, "final_model"))
     
-    print("Training completed!")
+    logger.info("Training completed!")
+    run.finish()
 
 if __name__ == "__main__":
     main()
