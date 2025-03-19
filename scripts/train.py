@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from config import settings
 from src.modules.student import StudentModel
 from src.modules.teacher import TeacherModel
-from src.services.data_loader import create_data_loaders
+from utils.places365_data_loader import create_data_loaders
 from src.services.trainer_KD import KnowledgeDistillationTrainer
 from src.utils.loss import DistillationLoss
 from utils import logger as logging

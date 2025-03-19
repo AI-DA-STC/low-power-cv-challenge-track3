@@ -6,3 +6,4 @@ wandb
 tqdm
 pydantic-settings
 accelerate
+aimet-torch
